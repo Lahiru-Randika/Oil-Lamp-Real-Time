@@ -13,20 +13,20 @@ import { auth, db, CEREMONY_ID } from "./firebase";
 import "./style.css";
 
 const ART_WIDTH = 2048;
-const ART_HEIGHT = 975;
+const ART_HEIGHT = 1152;
 
 // x = horizontal flame center, y = wick/base position, h = flame height.
 const LEFT_CUPS = [
-  { x: 568, y: 68, h: 58 },
-  { x: 495, y: 143, h: 62 },
-  { x: 430, y: 237, h: 64 },
-  { x: 568, y: 281, h: 64 },
-  { x: 388, y: 326, h: 66 },
-  { x: 386, y: 420, h: 67 },
-  { x: 519, y: 420, h: 67 },
-  { x: 386, y: 518, h: 68 },
-  { x: 416, y: 614, h: 70 },
-  { x: 526, y: 600, h: 70 },
+  { x: 575, y: 74,  h: 59 },
+  { x: 510, y: 165, h: 69 },
+  { x: 449, y: 276, h: 72 },
+  { x: 580, y: 320, h: 70 },
+  { x: 410, y: 389, h: 73 },
+  { x: 395, y: 498, h: 73 },
+  { x: 533, y: 498, h: 73 },
+  { x: 395, y: 609, h: 74 },
+  { x: 417, y: 720, h: 75 },
+  { x: 535, y: 703, h: 75 },
 ];
 
 const LAMPS = [
@@ -37,9 +37,9 @@ const LAMPS = [
     id: `right-${i}`,
   })),
   {
-    x: 1024,
-    y: 760,
-    h: 122,
+    x: 1025,
+    y: 899,
+    h: 151,
     id: "center",
     center: true,
   },
