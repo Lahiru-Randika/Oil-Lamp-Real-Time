@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "ceremonies": {
+      "$ceremonyId": {
+        "litCount": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 21"
+        }
+      }
+    }
+  }
+}
