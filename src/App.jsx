@@ -10,10 +10,8 @@ import { signInAnonymously } from "firebase/auth";
 import { onValue, ref, runTransaction } from "firebase/database";
 import { auth, db, CEREMONY_ID } from "./firebase";
 import "./style.css";
-
 const ART_WIDTH = 2048;
 const ART_HEIGHT = 1152;
-
 // x = horizontal flame center, y = wick/base position, h = flame height.
 const LEFT_CUPS = [
   { x: 575, y: 72, h: 59 },
@@ -27,7 +25,6 @@ const LEFT_CUPS = [
   { x: 417, y: 720, h: 75 },
   { x: 535, y: 703, h: 75 },
 ];
-
 const LAMPS = [
   ...LEFT_CUPS.map((cup, i) => ({ ...cup, id: `left-${i}` })),
   ...LEFT_CUPS.map((cup, i) => ({
@@ -43,19 +40,16 @@ const LAMPS = [
     center: true,
   },
 ];
-
 // Center first, then alternate left/right from the bottom upward.
 const ORDER = [LAMPS.length - 1];
 for (let i = LEFT_CUPS.length - 1; i >= 0; i -= 1) {
   ORDER.push(i, i + LEFT_CUPS.length);
 }
-
 const MAX_LAMPS = ORDER.length;
 const COMPACT_MEDIA = "(max-width: 1024px)";
 const percent = (value, total) => `${(value / total) * 100}%`;
 const isCompactScreen = () =>
   typeof window !== "undefined" && window.matchMedia(COMPACT_MEDIA).matches;
-
 const AMBIENT_EMBERS = Array.from({ length: 16 }, (_, i) => ({
   id: i,
   left: `${4 + ((i * 6.1) % 92)}%`,
@@ -64,8 +58,11 @@ const AMBIENT_EMBERS = Array.from({ length: 16 }, (_, i) => ({
   size: `${2 + (i % 4)}px`,
   drift: `${(i % 2 === 0 ? 1 : -1) * (10 + (i % 5) * 5)}px`,
 }));
-
 export default function App() {
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const controlsTimerRef = useRef(null);
+  const [highlightedLamp, setHighlightedLamp] = useState(null);
+  const highlightTimerRef = useRef(null);
   const [litCount, setLitCount] = useState(0);
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [firebaseError, setFirebaseError] = useState("");
@@ -76,14 +73,10 @@ export default function App() {
   const [musicVolume, setMusicVolume] = useState(35);
   const [soundOpen, setSoundOpen] = useState(false);
   const [musicError, setMusicError] = useState(false);
-
-  const [controlsVisible, setControlsVisible] = useState(false);
-  const controlsTimerRef = useRef(null);
   // Mobile/Tablet Fire Burst & Debounce state
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [burstActive, setBurstActive] = useState(false);
   const [burstKey, setBurstKey] = useState(0);
-
   const musicRef = useRef(null);
   const lightRef = useRef(null);
   const mutedByUser = useRef(false);
@@ -91,43 +84,32 @@ export default function App() {
   const previousRemoteCountRef = useRef(null);
   const hasReceivedInitialStateRef = useRef(false);
   const debounceTimerRef = useRef(null);
-
   const litCountRef = ref(db, `ceremonies/${CEREMONY_ID}/litCount`);
-
-  const [highlightedLamp, setHighlightedLamp] = useState(null);
-  const highlightTimerRef = useRef(null);
-
   // Fullscreen state.
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
     };
-
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
   }, []);
-
   // Background music setup.
   useEffect(() => {
     const audio = musicRef.current;
     if (!audio) return;
-
     audio.volume = musicVolume / 100;
     audio.loop = true;
-
     const onPlay = () => {
       setMusicPlaying(true);
       setMusicError(false);
     };
     const onPause = () => setMusicPlaying(false);
     const onError = () => setMusicError(true);
-
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("error", onError);
-
     const compact = window.matchMedia(COMPACT_MEDIA);
     const syncMusicToScreen = () => {
       if (compact.matches) {
@@ -138,10 +120,8 @@ export default function App() {
         audio.play().catch(() => {});
       }
     };
-
     syncMusicToScreen();
     compact.addEventListener("change", syncMusicToScreen);
-
     return () => {
       compact.removeEventListener("change", syncMusicToScreen);
       audio.removeEventListener("play", onPlay);
@@ -150,13 +130,11 @@ export default function App() {
       audio.pause();
     };
   }, []);
-
   useEffect(() => {
     if (musicRef.current) {
       musicRef.current.volume = musicVolume / 100;
     }
   }, [musicVolume]);
-
   // Clean up timer on unmount
   useEffect(() => {
     return () => {
@@ -165,21 +143,24 @@ export default function App() {
       }
     };
   }, []);
+  // Clear the lamp highlight timer if the projector unmounts.
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
 
   const showControls = () => {
     setControlsVisible(true);
-
     // Clear the previous timer
     if (controlsTimerRef.current) {
       clearTimeout(controlsTimerRef.current);
     }
-
-    // Hide after 5 seconds without interaction
+    // Hide after 10 seconds without interaction
     controlsTimerRef.current = setTimeout(() => {
       setControlsVisible(false);
-    }, 5000);
+    }, 10000);
   };
-
   // Cleanup when component unmounts
   useEffect(() => {
     return () => {
@@ -188,17 +169,14 @@ export default function App() {
       }
     };
   }, []);
-
   // Sign in anonymously, then subscribe to the shared Realtime Database value.
   useEffect(() => {
     let unsubscribeDatabase = null;
     let cancelled = false;
-
     const connect = async () => {
       try {
         await signInAnonymously(auth);
         if (cancelled) return;
-
         // Initialize the shared value only when it does not exist yet.
         await runTransaction(litCountRef, (current) => {
           if (current === null) return 0;
@@ -206,9 +184,7 @@ export default function App() {
           if (!Number.isFinite(value)) return 0;
           return Math.max(0, Math.min(MAX_LAMPS, Math.floor(value)));
         });
-
         if (cancelled) return;
-
         unsubscribeDatabase = onValue(
           litCountRef,
           (snapshot) => {
@@ -217,12 +193,29 @@ export default function App() {
               0,
               Math.min(MAX_LAMPS, Number.isFinite(raw) ? Math.floor(raw) : 0)
             );
-
             const previous = previousRemoteCountRef.current;
             setLitCount(nextCount);
             setFirebaseReady(true);
             setFirebaseError("");
 
+            // Animate the newest lamp only after the first Firebase snapshot.
+            if (
+              hasReceivedInitialStateRef.current &&
+              previous !== null &&
+              nextCount > previous
+            ) {
+              if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+              setHighlightedLamp(ORDER[nextCount - 1]);
+              highlightTimerRef.current = setTimeout(() => {
+                setHighlightedLamp(null);
+                highlightTimerRef.current = null;
+              }, 2200);
+            } else if (previous !== null && nextCount < previous) {
+              // Clear the highlight when the ceremony is reset.
+              if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+              highlightTimerRef.current = null;
+              setHighlightedLamp(null);
+            }
             // Play the short lighting sound for new remote increments
             if (
               !isCompactScreen() &&
@@ -242,7 +235,6 @@ export default function App() {
                 }
               }
             }
-
             previousRemoteCountRef.current = nextCount;
             hasReceivedInitialStateRef.current = true;
           },
@@ -258,36 +250,29 @@ export default function App() {
         setFirebaseError("Firebase connection failed");
       }
     };
-
     void connect();
-
     return () => {
       cancelled = true;
       if (unsubscribeDatabase) unsubscribeDatabase();
     };
   }, []);
-
   const startMusic = () => {
     const audio = musicRef.current;
     if (!audio || mutedByUser.current || !audio.paused) return;
-
     audio
       .play()
       .then(() => setMusicError(false))
       .catch(() => setMusicError(true));
   };
-
   // Atomic global increment with fire burst animation and debounce guard
   const lightNext = async () => {
     if (!firebaseReady || litCount >= MAX_LAMPS || isDebouncing) return;
-
     // 1. Standard Haptic Feedback
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
         navigator.vibrate(50);
       } catch {}
     }
-
     // 2. Immediate audio feedback
     if (!isCompactScreen() && lightRef.current) {
       try {
@@ -296,27 +281,22 @@ export default function App() {
         lightRef.current.play().catch(() => {});
       } catch {}
     }
-
     if (!isCompactScreen()) {
       startMusic();
     }
-
     // 3. Trigger Fire Burst animation & debounce lock
     setBurstActive(true);
     setBurstKey((prev) => prev + 1);
     setIsDebouncing(true);
-
     try {
       await runTransaction(litCountRef, (current) => {
         const currentCount = Math.max(
           0,
           Math.min(MAX_LAMPS, Number(current ?? 0) || 0)
         );
-
         if (currentCount >= MAX_LAMPS) {
           return currentCount;
         }
-
         return currentCount + 1;
       });
       setFirebaseError("");
@@ -334,11 +314,9 @@ export default function App() {
       }, 1600);
     }
   };
-
   // Reset is also global: every connected device returns to zero lamps.
   const resetLamps = async () => {
     if (!firebaseReady) return;
-
     try {
       await runTransaction(litCountRef, () => 0);
       setFirebaseError("");
@@ -347,7 +325,6 @@ export default function App() {
       setFirebaseError("Could not reset ceremony");
     }
   };
-
   const toggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) {
@@ -359,15 +336,12 @@ export default function App() {
       console.warn("Fullscreen unavailable:", error);
     }
   };
-
   // Touch: normal tap does nothing; double tap toggles fullscreen.
   const handleScenePointerUp = (event) => {
     if (event.pointerType === "mouse") return;
     if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-
     const now = Date.now();
     const previous = lastTouchRef.current;
-
     if (
       previous &&
       now - previous.time < 370 &&
@@ -377,18 +351,15 @@ export default function App() {
       void toggleFullscreen();
       return;
     }
-
     lastTouchRef.current = {
       time: now,
       x: event.clientX,
       y: event.clientY,
     };
   };
-
   const handleMusic = async () => {
     const audio = musicRef.current;
     if (!audio) return;
-
     if (audio.paused) {
       mutedByUser.current = false;
       try {
@@ -402,22 +373,18 @@ export default function App() {
       audio.pause();
     }
   };
-
   const litSet = new Set(ORDER.slice(0, litCount));
   const complete = litCount >= MAX_LAMPS;
-
   const getButtonLabel = () => {
     if (!firebaseReady) return "Connecting Ceremony...";
     if (complete) return "All Lamps Lit";
     if (isDebouncing) return "Lamp Lit";
     return "Light the Lamp";
   };
-
   return (
     <main className={`app-shell${complete ? " ceremony-complete" : ""}`}>
       <audio ref={musicRef} src="/sounds/background.mp3" preload="auto" loop />
       <audio ref={lightRef} src="/sounds/light.mp3" preload="auto" />
-
       <div className="mobile-atmosphere" aria-hidden="true">
         <div className="mobile-vignette" />
         <div className="mobile-heat-haze" />
@@ -440,7 +407,6 @@ export default function App() {
           ))}
         </div>
       </div>
-
       {/* Stage visual elements (Hidden on mobile & tablet, completely untouched on desktop) */}
       <section className="stage-wrapper" aria-label="Digital oil lamp ceremony">
         <div
@@ -462,10 +428,8 @@ export default function App() {
             alt="Digital Innovation for Sustainable Cultural Tourism 2026 silver oil lamp artwork"
             draggable={false}
           />
-
           {LAMPS.map((lamp, index) => {
             const isLit = litSet.has(index);
-
             return (
               <div
                 key={lamp.id}
@@ -482,6 +446,16 @@ export default function App() {
               >
                 {isLit && (
                   <>
+                    {highlightedLamp === index && (
+                      <span className="lamp-highlight" aria-hidden="true">
+                        <span className="highlight-glow" />
+                        <span className="highlight-ring" />
+                        <span className="highlight-ring highlight-ring-two" />
+                        <span className="highlight-sparkle highlight-sparkle-1" />
+                        <span className="highlight-sparkle highlight-sparkle-2" />
+                        <span className="highlight-sparkle highlight-sparkle-3" />
+                      </span>
+                    )}
                     <span className="flame-halo" />
                     <img
                       className="flame-image"
@@ -496,7 +470,6 @@ export default function App() {
           })}
         </div>
       </section>
-
       {/* Interactive Action Area */}
       <section className="ceremony-bar" aria-label="Ceremony lighting control">
         {/* Fire Burst / Spark Background Animation (Mobile/Tablet Only) */}
@@ -536,20 +509,14 @@ export default function App() {
             </div>
           </div>
         )}
-
         <div
           className={`button-wrapper${burstActive ? " is-bursting" : ""}${complete ? " is-complete" : ""}`}
         >
-          
-
           {/* <p className="mobile-helper-text">
             {complete
               ? "Every lamp is glowing"
               : "Tap below to light the oil lamp"}
           </p> */}
-
-          
-
           <button
             className={`light-button${isDebouncing ? " debouncing" : ""}${complete ? " complete" : ""}`}
             onClick={lightNext}
@@ -562,7 +529,6 @@ export default function App() {
           </button>
         </div>
       </section>
-
       {/* Floating Controls (Desktop only) */}
       <aside
         className={`floating-controls ${
@@ -596,7 +562,6 @@ export default function App() {
             )}
           </div>
         )}
-
         <button
           className="round-control reset-control"
           onClick={resetLamps}
@@ -607,7 +572,6 @@ export default function App() {
         >
           <RotateCcw size={21} />
         </button>
-
         <button
           className="round-control volume-toggle"
           onClick={() => setSoundOpen((open) => !open)}
@@ -618,7 +582,6 @@ export default function App() {
         >
           {soundOpen ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
         </button>
-
         <button
           className="round-control sound-control"
           onClick={handleMusic}
